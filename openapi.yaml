@@ -1,0 +1,266 @@
+openapi: 3.0.3
+info:
+  title: API de Agendamento
+  version: 1.0.0
+  description: |
+    API REST de calendário único com armazenamento em memória. Agendamentos
+    ativos não podem compartilhar intervalos sobrepostos. O cancelamento
+    exige antecedência configurável (24 horas por padrão).
+servers:
+  - url: http://localhost:3000
+    description: Execução local
+paths:
+  /health:
+    get:
+      summary: Verifica a saúde da API
+      operationId: health
+      responses:
+        '200':
+          description: Serviço disponível
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+  /appointments:
+    post:
+      summary: Cria um agendamento
+      operationId: createAppointment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAppointment'
+      responses:
+        '201':
+          description: Agendamento criado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Conflito de horário
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+    get:
+      summary: Lista agendamentos
+      operationId: listAppointments
+      parameters:
+        - $ref: '#/components/parameters/Status'
+        - $ref: '#/components/parameters/From'
+        - $ref: '#/components/parameters/To'
+      responses:
+        '200':
+          description: Lista ordenada por início
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, total]
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Appointment'
+                  total:
+                    type: integer
+        '400':
+          $ref: '#/components/responses/BadRequest'
+  /appointments/{id}:
+    get:
+      summary: Consulta um agendamento
+      operationId: getAppointment
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Agendamento encontrado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      summary: Cancela um agendamento
+      operationId: cancelAppointment
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Agendamento cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Agendamento já cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /appointments/{id}/cancel:
+    post:
+      summary: Cancela um agendamento (alias explícito)
+      operationId: cancelAppointmentExplicit
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: Agendamento cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Appointment'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Agendamento já cancelado
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+  /openapi.yaml:
+    get:
+      summary: Obtém a especificação OpenAPI estática
+      operationId: getOpenApi
+      responses:
+        '200':
+          description: Documento YAML
+          content:
+            application/yaml:
+              schema:
+                type: string
+components:
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    Status:
+      name: status
+      in: query
+      schema:
+        type: string
+        enum: [scheduled, cancelled]
+    From:
+      name: from
+      in: query
+      description: Retorna itens cujo fim é posterior a esta data ISO 8601
+      schema:
+        type: string
+        format: date-time
+    To:
+      name: to
+      in: query
+      description: Retorna itens cujo início é anterior a esta data ISO 8601
+      schema:
+        type: string
+        format: date-time
+  schemas:
+    CreateAppointment:
+      type: object
+      additionalProperties: false
+      required: [customerName, customerEmail, startAt, endAt]
+      properties:
+        customerName:
+          type: string
+          minLength: 1
+          maxLength: 120
+        customerEmail:
+          type: string
+          format: email
+          maxLength: 254
+        startAt:
+          type: string
+          format: date-time
+          description: ISO 8601 com timezone explícito
+        endAt:
+          type: string
+          format: date-time
+        notes:
+          type: string
+          maxLength: 500
+    Appointment:
+      allOf:
+        - $ref: '#/components/schemas/CreateAppointment'
+        - type: object
+          required: [id, status, createdAt]
+          properties:
+            id:
+              type: string
+              format: uuid
+            status:
+              type: string
+              enum: [scheduled, cancelled]
+            createdAt:
+              type: string
+              format: date-time
+            cancelledAt:
+              type: string
+              format: date-time
+    Health:
+      type: object
+      required: [status, service, storage, timestamp]
+      properties:
+        status:
+          type: string
+          example: ok
+        service:
+          type: string
+          example: api-agendamento
+        storage:
+          type: string
+          example: memory
+        timestamp:
+          type: string
+          format: date-time
+    ErrorResponse:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            details:
+              type: object
+              additionalProperties: true
+  responses:
+    BadRequest:
+      description: Requisição inválida
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnprocessableEntity:
+      description: Regra de negócio ou validação violada
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
