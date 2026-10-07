@@ -1,4 +1,5 @@
 # API de Agendamento
+[![CI](https://github.com/Mateusmfmd/api-agendamento/actions/workflows/ci.yml/badge.svg)](https://github.com/Mateusmfmd/api-agendamento/actions/workflows/ci.yml)
 
 API REST pequena, funcional e sem dependência de banco externo para criar, listar e cancelar agendamentos. A aplicação é escrita em **Node.js + TypeScript** e usa apenas o módulo nativo `node:http` em tempo de execução.
 
